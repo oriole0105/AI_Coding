@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>工作時間記錄器</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            min-width: 200px;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        }
+
+        .timers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .timer-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .timer-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
+        }
+
+        .timer-card.active {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #f5f7ff 0%, #e8eeff 100%);
+        }
+
+        .timer-card.disabled {
+            opacity: 0.6;
+            background: #f8f9fa;
+        }
+
+        .timer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .timer-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .timer-status {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ddd;
+        }
+
+        .status-indicator.active {
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .timer-display {
+            font-size: 2.5rem;
+            font-weight: 700;
+            text-align: center;
+            margin: 20px 0;
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .timer-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn-small {
+            padding: 8px 15px;
+            font-size: 14px;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #4caf50, #45a049);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(45deg, #2196f3, #1976d2);
+            color: white;
+        }
+
+        .analysis-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #eee;
+        }
+
+        .analysis-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        select {
+            padding: 10px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            background: white;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+
+        .statistics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: #4caf50;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕐 工作時間追蹤器</h1>
+        
+        <div class="controls">
+            <div class="input-group">
+                <input type="text" id="timerName" placeholder="輸入工作時鐘名稱" />
+                <button class="btn-primary" onclick="addTimer()">新增時鐘</button>
+            </div>
+            <button class="btn-danger" onclick="stopAllTimers()">停止所有時鐘</button>
+            <button class="btn-info" onclick="exportData()">匯出資料</button>
+            <button class="btn-warning" onclick="showHiddenTimers()">顯示隱藏計時器</button>
+            <button class="btn-danger" onclick="resetAllData()">重置所有資料</button>
+        </div>
+
+        <div id="timersContainer" class="timers-grid"></div>
+
+        <div class="analysis-section">
+            <h2>📊 數據分析</h2>
+            <div class="analysis-controls">
+                <select id="periodSelect" onchange="updateAnalysis()">
+                    <option value="day">日統計</option>
+                    <option value="week">週統計</option>
+                    <option value="month">月統計</option>
+                </select>
+                <input type="date" id="dateSelect" onchange="updateAnalysis()" />
+                <button class="btn-info btn-small" onclick="updateAnalysis()">更新圖表</button>
+            </div>
+            
+            <div class="statistics" id="statistics"></div>
+            
+            <div class="chart-container">
+                <canvas id="timeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let db;
+        let timers = new Map();
+        let activeTimerId = null;
+        let chart;
+
+        // 初始化 SQLite 資料庫
+        async function initDB() {
+            const SQL = await initSqlJs({
+                locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+            });
+
+            // 嘗試從 localStorage 載入現有資料庫
+            const data = localStorage.getItem('workTimeDB');
+            if (data) {
+                const buffer = new Uint8Array(JSON.parse(data));
+                db = new SQL.Database(buffer);
+            } else {
+                db = new SQL.Database();
+                // 創建表格
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS timers (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT UNIQUE NOT NULL,
+                        total_time INTEGER DEFAULT 0,
+                        is_active BOOLEAN DEFAULT 1,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                `);
+                
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS time_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timer_id INTEGER,
+                        start_time DATETIME,
+                        end_time DATETIME,
+                        duration INTEGER,
+                        date DATE,
+                        FOREIGN KEY (timer_id) REFERENCES timers (id)
+                    )
+                `);
+            }
+        }
+
+        // 儲存資料庫到 localStorage
+        function saveDB() {
+            const data = db.export();
+            localStorage.setItem('workTimeDB', JSON.stringify(Array.from(data)));
+        }
+
+        // 新增計時器
+        function addTimer() {
+            const name = document.getElementById('timerName').value.trim();
+            if (!name) {
+                alert('請輸入時鐘名稱');
+                return;
+            }
+
+            try {
+                db.run("INSERT INTO timers (name) VALUES (?)", [name]);
+                saveDB();
+                loadTimers();
+                document.getElementById('timerName').value = '';
+            } catch (error) {
+                if (error.message.includes('UNIQUE constraint failed')) {
+                    alert('此時鐘名稱已存在');
+                } else {
+                    alert('新增失敗：' + error.message);
+                }
+            }
+        }
+
+        // 載入所有計時器
+        function loadTimers() {
+            const stmt = db.prepare("SELECT * FROM timers WHERE is_active = 1 ORDER BY created_at");
+            const rows = stmt.getAsObject();
+            const container = document.getElementById('timersContainer');
+            container.innerHTML = '';
+
+            // 清空現有計時器
+            for (let [id, timer] of timers) {
+                if (timer.interval) {
+                    clearInterval(timer.interval);
+                }
+            }
+            timers.clear();
+
+            while (stmt.step()) {
+                const row = stmt.getAsObject();
+                createTimerCard(row);
+            }
+            stmt.free();
+        }
+
+        // 創建計時器卡片
+        function createTimerCard(timerData) {
+            const timer = {
+                id: timerData.id,
+                name: timerData.name,
+                currentTime: 0,
+                startTime: null,
+                interval: null,
+                isRunning: false
+            };
+
+            timers.set(timer.id, timer);
+
+            const card = document.createElement('div');
+            card.className = 'timer-card';
+            card.id = `timer-${timer.id}`;
+            
+            card.innerHTML = `
+                <div class="timer-header">
+                    <div class="timer-name">${timer.name}</div>
+                    <div class="timer-status">
+                        <div class="status-indicator" id="status-${timer.id}"></div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" checked onchange="toggleTimer(${timer.id})">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+                <div class="timer-display" id="display-${timer.id}">00:00:00</div>
+                <div class="timer-controls">
+                    <button class="btn-success btn-small" onclick="startTimer(${timer.id})">開始</button>
+                    <button class="btn-danger btn-small" onclick="stopTimer(${timer.id})">停止</button>
+                    <button class="btn-warning btn-small" onclick="resetTimer(${timer.id})">重置</button>
+                    <button class="btn-info btn-small" onclick="deleteTimer(${timer.id})">隱藏</button>
+                </div>
+            `;
+
+            document.getElementById('timersContainer').appendChild(card);
+        }
+
+        // 開始計時
+        function startTimer(id) {
+            // 停止其他正在運行的計時器
+            if (activeTimerId && activeTimerId !== id) {
+                stopTimer(activeTimerId);
+            }
+
+            const timer = timers.get(id);
+            if (!timer || timer.isRunning) return;
+
+            timer.startTime = new Date();
+            timer.isRunning = true;
+            activeTimerId = id;
+
+            // 更新狀態指示器
+            document.getElementById(`status-${id}`).classList.add('active');
+            document.getElementById(`timer-${id}`).classList.add('active');
+
+            timer.interval = setInterval(() => {
+                const now = new Date();
+                timer.currentTime = Math.floor((now - timer.startTime) / 1000);
+                updateDisplay(id);
+            }, 1000);
+        }
+
+        // 停止計時
+        function stopTimer(id) {
+            const timer = timers.get(id);
+            if (!timer || !timer.isRunning) return;
+
+            clearInterval(timer.interval);
+            timer.isRunning = false;
+            
+            if (activeTimerId === id) {
+                activeTimerId = null;
+            }
+
+            // 記錄時間到資料庫
+            if (timer.startTime && timer.currentTime > 0) {
+                const endTime = new Date();
+                const startTime = timer.startTime;
+                const duration = timer.currentTime;
+                const date = startTime.toISOString().split('T')[0];
+
+                db.run(`
+                    INSERT INTO time_records (timer_id, start_time, end_time, duration, date) 
+                    VALUES (?, ?, ?, ?, ?)
+                `, [id, startTime.toISOString(), endTime.toISOString(), duration, date]);
+
+                // 更新總時間
+                db.run("UPDATE timers SET total_time = total_time + ? WHERE id = ?", [duration, id]);
+                saveDB();
+            }
+
+            // 更新UI
+            document.getElementById(`status-${id}`).classList.remove('active');
+            document.getElementById(`timer-${id}`).classList.remove('active');
+            resetTimer(id);
+        }
+
+        // 重置計時器
+        function resetTimer(id) {
+            const timer = timers.get(id);
+            if (!timer) return;
+
+            if (timer.isRunning) {
+                stopTimer(id);
+            }
+
+            timer.currentTime = 0;
+            timer.startTime = null;
+            updateDisplay(id);
+        }
+
+        // 更新顯示
+        function updateDisplay(id) {
+            const timer = timers.get(id);
+            if (!timer) return;
+
+            const hours = Math.floor(timer.currentTime / 3600);
+            const minutes = Math.floor((timer.currentTime % 3600) / 60);
+            const seconds = timer.currentTime % 60;
+
+            const display = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            document.getElementById(`display-${id}`).textContent = display;
+        }
+
+        // 停止所有計時器
+        function stopAllTimers() {
+            timers.forEach((timer, id) => {
+                if (timer.isRunning) {
+                    stopTimer(id);
+                }
+            });
+        }
+
+        // 切換計時器啟用狀態
+        function toggleTimer(id) {
+            const checkbox = document.querySelector(`#timer-${id} input[type="checkbox"]`);
+            const isActive = checkbox.checked ? 1 : 0;
+            
+            db.run("UPDATE timers SET is_active = ? WHERE id = ?", [isActive, id]);
+            saveDB();
+            
+            if (!isActive) {
+                stopTimer(id);
+                document.getElementById(`timer-${id}`).classList.add('disabled');
+            } else {
+                document.getElementById(`timer-${id}`).classList.remove('disabled');
+            }
+        }
+
+        // 刪除計時器 (軟刪除，保留歷史記錄)
+        function deleteTimer(id) {
+            const options = confirm(
+                '請選擇刪除方式：\n' +
+                '確定 = 隱藏計時器（保留歷史記錄）\n' +
+                '取消 = 不刪除\n\n' +
+                '注意：歷史記錄將被保留，您可以在統計中看到過往數據'
+            );
+            
+            if (options) {
+                stopTimer(id);
+                // 軟刪除：只標記為非活躍，不刪除歷史記錄
+                db.run("UPDATE timers SET is_active = 0 WHERE id = ?", [id]);
+                saveDB();
+                loadTimers();
+                updateAnalysis();
+            }
+        }
+
+        // 永久刪除計時器及其所有記錄 (新增的危險操作)
+        function permanentDeleteTimer(id) {
+            if (confirm('⚠️ 危險操作！\n這將永久刪除計時器及其所有歷史記錄，無法復原！\n確定要繼續嗎？')) {
+                if (confirm('最後確認：所有相關的時間記錄將被永久刪除！')) {
+                    stopTimer(id);
+                    db.run("DELETE FROM time_records WHERE timer_id = ?", [id]);
+                    db.run("DELETE FROM timers WHERE id = ?", [id]);
+                    saveDB();
+                    loadTimers();
+                    updateAnalysis();
+                    alert('計時器及所有相關記錄已永久刪除');
+                }
+            }
+        }
+
+        // 更新分析數據
+        function updateAnalysis() {
+            const period = document.getElementById('periodSelect').value;
+            const selectedDate = document.getElementById('dateSelect').value || new Date().toISOString().split('T')[0];
+            
+            let dateCondition = '';
+            let groupBy = '';
+            let labels = [];
+            
+            const date = new Date(selectedDate);
+            
+            switch (period) {
+                case 'day':
+                    dateCondition = `date = '${selectedDate}'`;
+                    groupBy = 'timer_id';
+                    break;
+                case 'week':
+                    const startOfWeek = new Date(date);
+                    startOfWeek.setDate(date.getDate() - date.getDay());
+                    const endOfWeek = new Date(startOfWeek);
+                    endOfWeek.setDate(startOfWeek.getDate() + 6);
+                    
+                    dateCondition = `date BETWEEN '${startOfWeek.toISOString().split('T')[0]}' AND '${endOfWeek.toISOString().split('T')[0]}'`;
+                    groupBy = 'date, timer_id';
+                    break;
+                case 'month':
+                    const year = date.getFullYear();
+                    const month = date.getMonth() + 1;
+                    dateCondition = `strftime('%Y-%m', date) = '${year}-${month.toString().padStart(2, '0')}'`;
+                    groupBy = 'date, timer_id';
+                    break;
+            }
+
+            // 獲取統計數據 (包含隱藏的計時器歷史記錄)
+            const query = `
+                SELECT 
+                    t.name,
+                    t.id,
+                    t.is_active,
+                    COALESCE(SUM(tr.duration), 0) as total_duration,
+                    COUNT(tr.id) as session_count
+                FROM timers t
+                LEFT JOIN time_records tr ON t.id = tr.timer_id AND ${dateCondition}
+                GROUP BY t.id, t.name, t.is_active
+                HAVING total_duration > 0
+                ORDER BY total_duration DESC
+            `;
+
+            const stmt = db.prepare(query);
+            const data = [];
+            const chartData = {
+                labels: [],
+                datasets: [{
+                    label: '工作時間 (小時)',
+                    data: [],
+                    backgroundColor: [
+                        '#667eea', '#764ba2', '#f093fb', '#f5576c',
+                        '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+                        '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
+                }]
+            };
+
+            while (stmt.step()) {
+                const row = stmt.getAsObject();
+                const hours = row.total_duration / 3600;
+                data.push(row);
+                
+                // 為隱藏的計時器添加標識
+                const label = row.is_active ? row.name : `${row.name} (已隱藏)`;
+                chartData.labels.push(label);
+                chartData.datasets[0].data.push(Number(hours.toFixed(2)));
+            }
+            stmt.free();
+
+            // 更新統計卡片
+            updateStatistics(data, period);
+            
+            // 更新圖表
+            updateChart(chartData);
+        }
+
+        // 更新統計卡片
+        function updateStatistics(data, period) {
+            const totalTime = data.reduce((sum, item) => sum + item.total_duration, 0);
+            const totalSessions = data.reduce((sum, item) => sum + item.session_count, 0);
+            const avgSessionTime = totalSessions > 0 ? totalTime / totalSessions : 0;
+            
+            const hours = Math.floor(totalTime / 3600);
+            const minutes = Math.floor((totalTime % 3600) / 60);
+            
+            const avgHours = Math.floor(avgSessionTime / 3600);
+            const avgMinutes = Math.floor((avgSessionTime % 3600) / 60);
+            
+            const periodText = period === 'day' ? '今日' : period === 'week' ? '本週' : '本月';
+            
+            document.getElementById('statistics').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${hours}h ${minutes}m</div>
+                    <div class="stat-label">${periodText}總時間</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${totalSessions}</div>
+                    <div class="stat-label">${periodText}工作次數</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${avgHours}h ${avgMinutes}m</div>
+                    <div class="stat-label">平均每次時間</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${data.length}</div>
+                    <div class="stat-label">活躍項目數</div>
+                </div>
+            `;
+        }
+
+        // 更新圖表
+        function updateChart(data) {
+            const ctx = document.getElementById('timeChart').getContext('2d');
+            
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'doughnut',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                padding: 20,
+                                usePointStyle: true
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed || 0;
+                                    const hours = Math.floor(value);
+                                    const minutes = Math.floor((value - hours) * 60);
+                                    return `${label}: ${hours}h ${minutes}m`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 顯示隱藏的計時器管理界面
+        function showHiddenTimers() {
+            const stmt = db.prepare("SELECT * FROM timers WHERE is_active = 0 ORDER BY created_at");
+            const hiddenTimers = [];
+            
+            while (stmt.step()) {
+                hiddenTimers.push(stmt.getAsObject());
+            }
+            stmt.free();
+            
+            if (hiddenTimers.length === 0) {
+                alert('沒有隱藏的計時器');
+                return;
+            }
+            
+            let message = '隱藏的計時器列表：\n\n';
+            hiddenTimers.forEach((timer, index) => {
+                const totalHours = Math.floor(timer.total_time / 3600);
+                const totalMinutes = Math.floor((timer.total_time % 3600) / 60);
+                message += `${index + 1}. ${timer.name} (總計: ${totalHours}h ${totalMinutes}m)\n`;
+            });
+            
+            message += '\n請輸入要恢復的計時器編號 (輸入 0 取消):';
+            
+            const choice = prompt(message);
+            const index = parseInt(choice) - 1;
+            
+            if (choice === '0') {
+                return;
+            }
+            
+            if (index >= 0 && index < hiddenTimers.length) {
+                const timer = hiddenTimers[index];
+                if (confirm(`確定要恢復「${timer.name}」計時器嗎？`)) {
+                    db.run("UPDATE timers SET is_active = 1 WHERE id = ?", [timer.id]);
+                    saveDB();
+                    loadTimers();
+                    alert(`「${timer.name}」已恢復到活躍狀態`);
+                }
+            } else {
+                alert('無效的選擇');
+            }
+        }
+        function exportData() {
+            const data = db.export();
+            const blob = new Blob([data], { type: 'application/octet-stream' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `work_time_data_${new Date().toISOString().split('T')[0]}.db`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // 重置所有資料
+        function resetAllData() {
+            if (confirm('警告：這將刪除所有計時器和記錄，確定要繼續嗎？')) {
+                stopAllTimers();
+                db.run("DELETE FROM time_records");
+                db.run("DELETE FROM timers");
+                saveDB();
+                loadTimers();
+                updateAnalysis();
+                alert('所有資料已重置');
+            }
+        }
+
+        // 初始化應用程式
+        async function init() {
+            await initDB();
+            loadTimers();
+            
+            // 設置默認日期為今天
+            document.getElementById('dateSelect').value = new Date().toISOString().split('T')[0];
+            updateAnalysis();
+            
+            // 每分鐘自動保存一次
+            setInterval(saveDB, 60000);
+        }
+
+        // 頁面卸載時保存資料
+        window.addEventListener('beforeunload', saveDB);
+
+        // 啟動應用程式
+        init();
+    </script>
+</body>
+</html>
