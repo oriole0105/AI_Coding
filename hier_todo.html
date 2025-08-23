@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>階層式待辦事項管理系統</title>
+  <!-- Material-UI CSS -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" />
+  <link rel="stylesheet" href="https://unpkg.com/@mui/material@5.14.20/dist/css/mui.min.css" />
+  <!-- D3.js -->
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <!-- sql.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/dist/sql-wasm.min.js"></script>
+  <!-- FileSaver.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <!-- React and Dependencies -->
+  <script src="https://unpkg.com/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+  <script src="https://unpkg.com/@mui/material@5.14.20/umd/mui.min.js"></script>
+  <style>
+    body { margin: 0; font-family: Roboto, sans-serif; }
+    #root { padding: 20px; }
+    .task-tree { margin-top: 20px; }
+    .task-node { padding: 10px; border: 1px solid #ccc; margin: 5px; border-radius: 4px; }
+    .task-completed { background-color: #e0f7fa; }
+    .task-high { border-color: #f44336; }
+    .task-medium { border-color: #ff9800; }
+    .task-low { border-color: #4caf50; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { Container, Button, TextField, Select, MenuItem, FormControl, InputLabel, Box, Typography, List, ListItem, IconButton } = window['@mui/material'];
+
+    // 初始化 SQLite
+    let db;
+    async function initDb() {
+      const SQL = await window.initSqlJs({
+        locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/dist/sql-wasm.wasm'
+      });
+      db = new SQL.Database();
+      db.run(`
+        CREATE TABLE IF NOT EXISTS Task (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT,
+          description TEXT,
+          dueDate TEXT,
+          priority TEXT,
+          status TEXT,
+          parentTaskId INTEGER,
+          assignedFrom TEXT,
+          FOREIGN KEY(parentTaskId) REFERENCES Task(id)
+        );
+        CREATE TABLE IF NOT EXISTS Note (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          taskId INTEGER,
+          content TEXT,
+          createdAt TEXT,
+          FOREIGN KEY(taskId) REFERENCES Task(id)
+        );
+      `);
+    }
+
+    // 主應用程式組件
+    function App() {
+      const [tasks, setTasks] = useState([]);
+      const [newTask, setNewTask] = useState({ title: '', description: '', dueDate: '', priority: 'Low', parentTaskId: null });
+      const [search, setSearch] = useState('');
+      const [selectedTask, setSelectedTask] = useState(null);
+
+      // 初始化資料庫並載入任務
+      useEffect(() => {
+        initDb().then(() => loadTasks());
+      }, []);
+
+      // 載入任務
+      const loadTasks = () => {
+        const result = db.exec('SELECT * FROM Task');
+        const loadedTasks = result.length > 0 ? result[0].values.map(row => ({
+          id: row[0],
+          title: row[1],
+          description: row[2],
+          dueDate: row[3],
+          priority: row[4],
+          status: row[5],
+          parentTaskId: row[6],
+          assignedFrom: row[7]
+        })) : [];
+        setTasks(loadedTasks);
+      };
+
+      // 創建任務
+      const createTask = () => {
+        if (!newTask.title) return;
+        db.run(`
+          INSERT INTO Task (title, description, dueDate, priority, status, parentTaskId, assignedFrom)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `, [
+          newTask.title,
+          newTask.description,
+          newTask.dueDate,
+          newTask.priority,
+          'Not Started',
+          newTask.parentTaskId || null,
+          newTask.assignedFrom || ''
+        ]);
+        setNewTask({ title: '', description: '', dueDate: '', priority: 'Low', parentTaskId: null });
+        loadTasks();
+      };
+
+      // 更新任務
+      const updateTask = (task) => {
+        db.run(`
+          UPDATE Task SET title = ?, description = ?, dueDate = ?, priority = ?, status = ?
+          WHERE id = ?
+        `, [task.title, task.description, task.dueDate, task.priority, task.status, task.id]);
+        loadTasks();
+      };
+
+      // 刪除任務
+      const deleteTask = (id) => {
+        db.run('DELETE FROM Task WHERE id = ?', [id]);
+        db.run('DELETE FROM Task WHERE parentTaskId = ?', [id]); // 刪除子任務
+        loadTasks();
+      };
+
+      // 匯出任務
+      const exportTask = (taskId) => {
+        const task = tasks.find(t => t.id === taskId);
+        const subTasks = tasks.filter(t => t.parentTaskId === taskId);
+        const exportData = { task, subTasks };
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        saveAs(blob, `task_${taskId}.json`);
+      };
+
+      // 匯入任務
+      const importTask = (event) => {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const data = JSON.parse(e.target.result);
+          const { task, subTasks } = data;
+          db.run(`
+            INSERT INTO Task (title, description, dueDate, priority, status, parentTaskId, assignedFrom)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+          `, [task.title, task.description, task.dueDate, task.priority, task.status, null, task.assignedFrom || 'Imported']);
+          const newTaskId = db.exec('SELECT last_insert_rowid()')[0].values[0][0];
+          subTasks.forEach(subTask => {
+            db.run(`
+              INSERT INTO Task (title, description, dueDate, priority, status, parentTaskId, assignedFrom)
+              VALUES (?, ?, ?, ?, ?, ?, ?)
+            `, [subTask.title, subTask.description, subTask.dueDate, subTask.priority, subTask.status, newTaskId, subTask.assignedFrom]);
+          });
+          loadTasks();
+        };
+        reader.readAsText(file);
+      };
+
+      // 備份資料庫
+      const backupDb = () => {
+        const data = db.export();
+        const blob = new Blob([data], { type: 'application/octet-stream' });
+        saveAs(blob, 'htms_backup.db');
+      };
+
+      // 恢復資料庫
+      const restoreDb = (event) => {
+        const file = event.target.files[0];
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const SQL = await window.initSqlJs({
+            locateFile: () => 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/dist/sql-wasm.wasm'
+          });
+          const data = new Uint8Array(e.target.result);
+          db = new SQL.Database(data);
+          loadTasks();
+        };
+        reader.readAsArrayBuffer(file);
+      };
+
+      // 搜尋任務
+      const filteredTasks = tasks.filter(t => t.title.toLowerCase().includes(search.toLowerCase()));
+
+      // 渲染任務樹
+      const renderTaskTree = (parentId = null, depth = 0) => {
+        return filteredTasks
+          .filter(t => t.parentTaskId === parentId)
+          .map(task => (
+            <ListItem key={task.id} className={`task-node ${task.status === 'Completed' ? 'task-completed' : ''} task-${task.priority.toLowerCase()}`} style={{ marginLeft: depth * 20 }}>
+              <Box>
+                <Typography>{task.title} ({task.priority}, {task.status})</Typography>
+                <Button onClick={() => setSelectedTask(task)}>編輯</Button>
+                <Button onClick={() => deleteTask(task.id)}>刪除</Button>
+                <Button onClick={() => exportTask(task.id)}>匯出</Button>
+                {renderTaskTree(task.id, depth + 1)}
+              </Box>
+            </ListItem>
+          ));
+      };
+
+      return (
+        <Container>
+          <Typography variant="h4">階層式待辦事項管理系統</Typography>
+          
+          {/* 創建任務 */}
+          <Box my={2}>
+            <TextField
+              label="任務標題"
+              value={newTask.title}
+              onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="描述"
+              value={newTask.description}
+              onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="截止日期"
+              type="date"
+              value={newTask.dueDate}
+              onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })}
+              fullWidth
+            />
+            <FormControl fullWidth>
+              <InputLabel>優先級</InputLabel>
+              <Select
+                value={newTask.priority}
+                onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}
+              >
+                <MenuItem value="High">高</MenuItem>
+                <MenuItem value="Medium">中</MenuItem>
+                <MenuItem value="Low">低</MenuItem>
+              </Select>
+            </FormControl>
+            <FormControl fullWidth>
+              <InputLabel>父任務</InputLabel>
+              <Select
+                value={newTask.parentTaskId || ''}
+                onChange={(e) => setNewTask({ ...newTask, parentTaskId: e.target.value || null })}
+              >
+                <MenuItem value="">無</MenuItem>
+                {tasks.map(t => (
+                  <MenuItem key={t.id} value={t.id}>{t.title}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <Button variant="contained" onClick={createTask}>創建任務</Button>
+          </Box>
+
+          {/* 搜尋 */}
+          <TextField
+            label="搜尋任務"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            fullWidth
+          />
+
+          {/* 任務樹 */}
+          <List className="task-tree">{renderTaskTree()}</List>
+
+          {/* 匯出/匯入/備份 */}
+          <Box my={2}>
+            <Button variant="contained" component="label">
+              匯入任務
+              <input type="file" hidden onChange={importTask} accept=".json" />
+            </Button>
+            <Button variant="contained" onClick={backupDb}>備份資料庫</Button>
+            <Button variant="contained" component="label">
+              恢復資料庫
+              <input type="file" hidden onChange={restoreDb} accept=".db" />
+            </Button>
+          </Box>
+
+          {/* 編輯任務（簡單模態） */}
+          {selectedTask && (
+            <Box my={2}>
+              <Typography variant="h6">編輯任務</Typography>
+              <TextField
+                label="標題"
+                value={selectedTask.title}
+                onChange={(e) => setSelectedTask({ ...selectedTask, title: e.target.value })}
+                fullWidth
+              />
+              <TextField
+                label="描述"
+                value={selectedTask.description}
+                onChange={(e) => setSelectedTask({ ...selectedTask, description: e.target.value })}
+                fullWidth
+              />
+              <TextField
+                label="截止日期"
+                type="date"
+                value={selectedTask.dueDate}
+                onChange={(e) => setSelectedTask({ ...selectedTask, dueDate: e.target.value })}
+                fullWidth
+              />
+              <FormControl fullWidth>
+                <InputLabel>狀態</InputLabel>
+                <Select
+                  value={selectedTask.status}
+                  onChange={(e) => setSelectedTask({ ...selectedTask, status: e.target.value })}
+                >
+                  <MenuItem value="Not Started">未開始</MenuItem>
+                  <MenuItem value="In Progress">進行中</MenuItem>
+                  <MenuItem value="Completed">已完成</MenuItem>
+                </Select>
+              </FormControl>
+              <Button variant="contained" onClick={() => { updateTask(selectedTask); setSelectedTask(null); }}>
+                保存
+              </Button>
+              <Button onClick={() => setSelectedTask(null)}>取消</Button>
+            </Box>
+          )}
+
+          {/* TODO: 報告功能（未來擴展） */}
+          {/* <Typography>進度報告：{tasks.filter(t => t.status === 'Completed').length} / {tasks.length} 任務完成</Typography> */}
+        </Container>
+      );
+    }
+
+    // 渲染應用程式
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
