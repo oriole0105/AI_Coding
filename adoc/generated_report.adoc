@@ -1,0 +1,168 @@
+= Curve Viewer Report
+:toc: left
+
+== Project Progress Chart
+
+此圖表展示專案的進度趨勢與里程碑。
+
+* **Line Chart**: 顯示 `plan`, `create`, `pass` 的數值變化。
+* **Bar Chart**: 顯示 `bar` 類型的里程碑資訊。
+* **Axis**: X軸為日期 (Time)，Y軸為數值 (Value)。
+
+[vegalite]
+----
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "Combined Line and Bar Chart with Milestones",
+  "width": 600,
+  "height": 400,
+  "data": {
+    "values": [
+      {
+        "date": "2025-12-29",
+        "type": "plan",
+        "value": 27
+      },
+      {
+        "date": "2025-12-30",
+        "type": "plan",
+        "value": 30
+      },
+      {
+        "date": "2025-12-31",
+        "type": "plan",
+        "value": 30
+      },
+      {
+        "date": "2025-12-29",
+        "type": "create",
+        "value": 14
+      },
+      {
+        "date": "2025-12-30",
+        "type": "create",
+        "value": 16
+      },
+      {
+        "date": "2025-12-31",
+        "type": "create",
+        "value": 20
+      },
+      {
+        "date": "2025-12-29",
+        "type": "pass",
+        "value": 8
+      },
+      {
+        "date": "2025-12-30",
+        "type": "pass",
+        "value": 10
+      },
+      {
+        "date": "2025-12-31",
+        "type": "pass",
+        "value": 15
+      },
+      {
+        "date": "2025-12-29",
+        "type": "bar",
+        "value": 40,
+        "milestone": "CN"
+      },
+      {
+        "date": "2026-01-27",
+        "type": "bar",
+        "value": 40,
+        "milestone": "TO"
+      }
+    ]
+  },
+  "layer": [
+    {
+      "description": "Line chart for plan, create, pass",
+      "transform": [
+        {
+          "filter": "datum.type != 'bar'"
+        }
+      ],
+      "mark": {
+        "type": "line",
+        "point": true
+      },
+      "encoding": {
+        "x": {
+          "field": "date",
+          "type": "temporal",
+          "title": "Date (Time)"
+        },
+        "y": {
+          "field": "value",
+          "type": "quantitative",
+          "title": "Value"
+        },
+        "color": {
+          "field": "type",
+          "type": "nominal",
+          "title": "Type",
+          "scale": {
+            "scheme": "category10"
+          }
+        }
+      }
+    },
+    {
+      "description": "Bar chart for milestones",
+      "transform": [
+        {
+          "filter": "datum.type == 'bar'"
+        }
+      ],
+      "mark": {
+        "type": "bar",
+        "width": 2,
+        "color": "red",
+        "opacity": 0.7
+      },
+      "encoding": {
+        "x": {
+          "field": "date",
+          "type": "temporal"
+        },
+        "y": {
+          "field": "value",
+          "type": "quantitative"
+        }
+      }
+    },
+    {
+      "description": "Text labels for milestones",
+      "transform": [
+        {
+          "filter": "datum.type == 'bar'"
+        }
+      ],
+      "mark": {
+        "type": "text",
+        "align": "center",
+        "baseline": "bottom",
+        "dy": -5,
+        "color": "black"
+      },
+      "encoding": {
+        "x": {
+          "field": "date",
+          "type": "temporal"
+        },
+        "y": {
+          "field": "value",
+          "type": "quantitative"
+        },
+        "text": {
+          "field": "milestone",
+          "type": "nominal"
+        }
+      }
+    }
+  ]
+}
+----

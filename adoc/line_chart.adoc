@@ -1,0 +1,222 @@
+[vagalite]
+----
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": {
+    "text": "CSV Data Trend Analysis",
+    "fontSize": 18,
+    "fontWeight": "bold"
+  },
+  "description": "Line chart showing plan, create, and pass metrics over time",
+  "width": 800,
+  "height": 400,
+  "data": {
+    "url": "output.csv",
+    "format": {
+      "type": "csv",
+      "parse": {
+        "date": "date:'%Y-%m-%d'",
+        "value": "number"
+      }
+    }
+  },
+  "transform": [
+    {
+      "calculate": "lower(datum.type)",
+      "as": "type_lower"
+    }
+  ],
+  "mark": {
+    "type": "line",
+    "point": {
+      "filled": true,
+      "size": 100
+    },
+    "strokeWidth": 3
+  },
+  "encoding": {
+    "x": {
+      "field": "date",
+      "type": "temporal",
+      "title": "Date",
+      "axis": {
+        "labelAngle": -45,
+        "labelFontSize": 11,
+        "titleFontSize": 13,
+        "format": "%Y-%m-%d",
+        "grid": true
+      }
+    },
+    "y": {
+      "field": "value",
+      "type": "quantitative",
+      "title": "Quantity",
+      "axis": {
+        "labelFontSize": 11,
+        "titleFontSize": 13,
+        "grid": true
+      },
+      "scale": {
+        "zero": true,
+        "nice": true
+      }
+    },
+    "color": {
+      "field": "type_lower",
+      "type": "nominal",
+      "title": "Type",
+      "scale": {
+        "domain": ["plan", "create", "pass"],
+        "range": ["#1f77b4", "#ff7f0e", "#2ca02c"]
+      },
+      "legend": {
+        "orient": "top-right",
+        "title": "Type",
+        "titleFontSize": 13,
+        "labelFontSize": 12,
+        "symbolSize": 100,
+        "symbolStrokeWidth": 3
+      }
+    },
+    "tooltip": [
+      {
+        "field": "date",
+        "type": "temporal",
+        "title": "Date",
+        "format": "%Y-%m-%d"
+      },
+      {
+        "field": "type",
+        "type": "nominal",
+        "title": "Type"
+      },
+      {
+        "field": "value",
+        "type": "quantitative",
+        "title": "Quantity"
+      }
+    ]
+  },
+  "config": {
+    "view": {
+      "strokeWidth": 0,
+      "continuousWidth": 800,
+      "continuousHeight": 400
+    },
+    "axis": {
+      "labelColor": "#333",
+      "titleColor": "#333"
+    },
+    "legend": {
+      "labelColor": "#333",
+      "titleColor": "#333"
+    }
+  }
+}
+----
+
+
+
+[vegalite]
+----
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "title": {
+    "text": "CSV Data Trend Analysis",
+    "fontSize": 18,
+    "fontWeight": "bold"
+  },
+  "description": "Line chart showing plan, create, and pass metrics over time",
+  "width": 800,
+  "height": 400,
+  "data": {
+    "values": [
+      {"type": "plan", "date": "2025-12-29", "value": 27},
+      {"type": "plan", "date": "2025-12-30", "value": 30},
+      {"type": "plan", "date": "2025-12-31", "value": 30},
+      {"type": "create", "date": "2025-12-29", "value": 14},
+      {"type": "create", "date": "2025-12-30", "value": 16},
+      {"type": "create", "date": "2025-12-31", "value": 20},
+      {"type": "pass", "date": "2025-12-29", "value": 8},
+      {"type": "pass", "date": "2025-12-30", "value": 10},
+      {"type": "pass", "date": "2025-12-31", "value": 15}
+    ]
+  },
+  "mark": {
+    "type": "line",
+    "point": {
+      "filled": true,
+      "size": 100
+    },
+    "strokeWidth": 3
+  },
+  "encoding": {
+    "x": {
+      "field": "date",
+      "type": "temporal",
+      "title": "Date",
+      "axis": {
+        "labelAngle": -45,
+        "labelFontSize": 11,
+        "titleFontSize": 13,
+        "format": "%Y-%m-%d",
+        "grid": true
+      }
+    },
+    "y": {
+      "field": "value",
+      "type": "quantitative",
+      "title": "Quantity",
+      "axis": {
+        "labelFontSize": 11,
+        "titleFontSize": 13,
+        "grid": true
+      },
+      "scale": {
+        "zero": true,
+        "nice": true
+      }
+    },
+    "color": {
+      "field": "type",
+      "type": "nominal",
+      "title": "Type",
+      "scale": {
+        "domain": ["plan", "create", "pass"],
+        "range": ["#1f77b4", "#ff7f0e", "#2ca02c"]
+      },
+      "legend": {
+        "orient": "top-right",
+        "title": "Type",
+        "titleFontSize": 13,
+        "labelFontSize": 12,
+        "symbolSize": 100,
+        "symbolStrokeWidth": 3
+      }
+    },
+    "tooltip": [
+      {
+        "field": "date",
+        "type": "temporal",
+        "title": "Date",
+        "format": "%Y-%m-%d"
+      },
+      {
+        "field": "type",
+        "type": "nominal",
+        "title": "Type"
+      },
+      {
+        "field": "value",
+        "type": "quantitative",
+        "title": "Quantity"
+      }
+    ]
+  },
+  "config": {
+    "view": {
+      "strokeWidth": 0
+    }
+  }
+}
+----
